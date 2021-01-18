@@ -47,7 +47,7 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                 showGeneralDialog(
                   barrierLabel: "Label",
                   barrierDismissible: false,
-                  barrierColor: Colors.black.withOpacity(0.5),
+                  barrierColor: Colors.black.withOpacity(0.1),
                   transitionDuration: Duration(milliseconds: 400),
                   context: context,
                   pageBuilder: (context, anim1, anim2) {
@@ -66,7 +66,7 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                 children: [
 
                   IconButton(
-                    icon: Icon(NowPlayingFile.isPlaying?Icons.stop:Icons.play_arrow,color:Colors.black),
+                    icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow,color:Colors.black),
                     onPressed: (){
                       if(NowPlayingFile.player!=null){
                         if(NowPlayingFile.isPlaying){
@@ -85,7 +85,7 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                   ),
 
 
-                  Container(width: MediaQuery.of(context).size.width*3/4,child: Text(NowPlayingFile.title!=null?NowPlayingFile.title:"Add song")),
+                  Container(width: MediaQuery.of(context).size.width*3/4,child: Text(NowPlayingFile.title!=null?NowPlayingFile.title:"Dodaj piosenkę")),
 
 
                   ActualPlaylist.index!=null&&ActualPlaylist.listOfMusicFiles!=null?
@@ -116,22 +116,12 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                 ActualPlaylist.listOfMusicFiles.length!=0?ListView(physics: NeverScrollableScrollPhysics(), shrinkWrap: true, scrollDirection: Axis.vertical,
                     children: ActualPlaylist.listOfMusicFiles.map((item) => Container(color:Colors.grey,child:RaisedButton(
                       child: Text(item.music,style: TextStyle(color:Colors.white)),onPressed: ()async{
-                        if(NowPlayingFile.player==null)NowPlayingFile.player=AudioPlayer();
-                        if(NowPlayingFile.cache==null)NowPlayingFile.cache=AudioCache(fixedPlayer: NowPlayingFile.player);
                         ActualPlaylist.index = item.id;
-                        NowPlayingFile.listaBitow = await readBytes();
+                        NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
                         NowPlayingFile.position=new Duration();
                         NowPlayingFile.isPlaying=true;
                         setState(() {
                           NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
-                          NowPlayingFile.player.durationHandler=(d){
-                            NowPlayingFile.musicLength=d;
-
-                          };
-
-                          NowPlayingFile.player.positionHandler=(d){
-                            NowPlayingFile.position=d;
-                          };
                         });
                     },
                     ))).toList()):Container(),
@@ -178,13 +168,13 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
     });
   }
 
-  Future<Uint8List> readBytes() async{
+  /*Future<Uint8List> readBytes() async{
     print(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music);
     if(File(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music)==null){
       print("Something wrong");
     }
     return await File(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music).readAsBytes();
-  }
+  }*/
 
   Future<bool> onBackPressed(){
     Navigator.pop(context);

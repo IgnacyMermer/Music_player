@@ -1,3 +1,5 @@
+import 'package:audioplayers/audio_cache.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:muzyka2/ActualPlaylist.dart';
 import 'package:muzyka2/FirstMainScreen.dart';
@@ -21,16 +23,61 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     updateList();
+
+
+    if(NowPlayingFile.position==null)NowPlayingFile.position=new Duration();
+    if(NowPlayingFile.musicLength==null)NowPlayingFile.musicLength=new Duration();
+
+    if(NowPlayingFile.player==null)NowPlayingFile.player=AudioPlayer();
+    if(NowPlayingFile.cache==null)NowPlayingFile.cache=AudioCache(fixedPlayer: NowPlayingFile.player);
+
+    NowPlayingFile.player.durationHandler=(d){
+      NowPlayingFile.musicLength=d;
+
+    };
+
+    /*NowPlayingFile.player.positionHandler=(d){
+      NowPlayingFile.position=d;
+    };*/
+
+    NowPlayingFile.player.positionHandler=(d)async{
+
+      if(d.inSeconds==NowPlayingFile.musicLength.inSeconds){
+
+        NowPlayingFile.player.pause();
+
+        if(ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length) {
+
+          ActualPlaylist.index++;
+          NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
+          NowPlayingFile.isPlaying = true;
+
+          NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+        }
+
+        else{
+
+          NowPlayingFile.position=new Duration();
+          NowPlayingFile.isPlaying=false;
+        }
+
+      }
+
+      else {
+
+        NowPlayingFile.position = d;
+
+      }
+    };
   }
 
   @override
   Widget build(BuildContext context) {
+
     if(ActualPlaylist.listOfPlaylist==null){
       ActualPlaylist.listOfPlaylist=new List();
     }
-    /*else{
-      print("HI"+ActualPlaylist.listOfPlaylist.length.toString());
-    }*/
+
     return WillPopScope(
       onWillPop: onBackPressed,
       child: Scaffold(
@@ -61,7 +108,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
 
                 IconButton(
-                  icon: Icon(NowPlayingFile.isPlaying?Icons.stop:Icons.play_arrow,color:Colors.black),
+                  icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow,color:Colors.black),
                   onPressed: (){
 
                   },
@@ -180,6 +227,8 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
+
+
 
   void updateList(){
     final Future<Database> dbFuture = databaseHelper.initialiseDatabase("myPlaylist");

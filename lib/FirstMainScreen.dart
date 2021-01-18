@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -30,6 +31,8 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
 
   CarouselController _carouselController = new CarouselController();
   ScrollController _scrollController = ScrollController();
+
+  Timer timer;
 
   Widget slider(){
     return Container(
@@ -68,94 +71,20 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
     NowPlayingFile.player.seek(newPosition);
   }
 
-  Future<Uint8List> readBytes() async{
-    return await File(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music).readAsBytes();
-  }
-
 
   @override
   void initState() {
     super.initState();
 
-    if(NowPlayingFile.position==null)NowPlayingFile.position=new Duration();
-    if(NowPlayingFile.musicLength==null)NowPlayingFile.musicLength=new Duration();
+    timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      setState(() {});
+    });
 
-    if(NowPlayingFile.player==null)NowPlayingFile.player=AudioPlayer();
-    if(NowPlayingFile.cache==null)NowPlayingFile.cache=AudioCache(fixedPlayer: NowPlayingFile.player);
-
-
-    NowPlayingFile.player.durationHandler=(d){
-
-      setState(() {
-        NowPlayingFile.musicLength=d;
-      });
-
-    };
-
-    NowPlayingFile.player.positionHandler=(d)async{
-
-      if(d.inSeconds==NowPlayingFile.musicLength.inSeconds){
-
-        NowPlayingFile.player.pause();
-
-        if(ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length) {
-
-          ActualPlaylist.index++;
-          _carouselController.animateToPage(ActualPlaylist.index);
-          NowPlayingFile.listaBitow = await readBytes();
-          NowPlayingFile.isPlaying = true;
-          _scrollController.jumpTo(_scrollController.position.minScrollExtent);
-
-          setState(() {
-            NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
-          });
-        }
-
-        else{
-          setState(() {
-            NowPlayingFile.position=new Duration();
-            NowPlayingFile.isPlaying=false;
-          });
-        }
-
-      }
-
-      else {
-
-        setState(() {
-          NowPlayingFile.position = d;
-        });
-
-      }
-    };
   }
 
   void goOut(){
-    NowPlayingFile.player.durationHandler=(d){
-      NowPlayingFile.musicLength=d;
-
-    };
-
-    NowPlayingFile.player.positionHandler=(d){
-      NowPlayingFile.position=d;
-    };
-
-    Navigator.of(context).pop();
-  }
-
-  
-  @override
-  void dispose() {
-    super.dispose();
-    NowPlayingFile.player.durationHandler=(d){
-      NowPlayingFile.musicLength=d;
-
-    };
-
-    NowPlayingFile.player.positionHandler=(d){
-      NowPlayingFile.position=d;
-    };
-
+    timer.cancel();
+    Navigator.pop(context);
   }
 
   @override
@@ -170,9 +99,6 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
     NowPlayingFile.title = tab!=null?tab[tab.length-1]:'Choose a song';
 
     NowPlayingFile.title= NowPlayingFile.title.replaceAll(".mp3", "");
-    if(_carouselController!=null&&ActualPlaylist.index!=null) {
-      _carouselController.jumpToPage(ActualPlaylist.index);
-    }
 
     return Dismissible(
 
@@ -187,7 +113,7 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
             splashRadius: 20,
             splashColor: Colors.grey[900],
             onPressed: (){
-              Navigator.of(context).pop();
+              goOut();
           }),
           title: Text("Muzyka"),
         ),
@@ -208,7 +134,7 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
 
                     CarouselSlider.builder(
                       carouselController: _carouselController,
-                      options: CarouselOptions(height: 250,enableInfiniteScroll: false,  onPageChanged: onPhotoChanged),
+                      options: CarouselOptions(height: 250,enableInfiniteScroll: false,  onPageChanged: onPhotoChanged,initialPage: ActualPlaylist.index),
                       itemCount: ActualPlaylist.listOfMusicFiles.length,
                       itemBuilder: (BuildContext context, int itemIndex) {
                         return Container(
@@ -267,7 +193,7 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
                                 onPressed: ActualPlaylist.index-1<0?null:()async{
                                   ActualPlaylist.index--;
                                   _carouselController.animateToPage(ActualPlaylist.index);
-                                  NowPlayingFile.listaBitow = await readBytes();
+                                  NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
                                   NowPlayingFile.isPlaying=true;
                                   _scrollController.jumpTo(_scrollController.position.minScrollExtent);
 
@@ -292,7 +218,7 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
                                   else{
 
                                       if(NowPlayingFile.position.inSeconds==0) {
-                                        NowPlayingFile.listaBitow = await readBytes();
+                                        NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
                                         NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
                                       }
 
@@ -341,7 +267,7 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
                                 onPressed: ActualPlaylist.index+1>=ActualPlaylist.listOfMusicFiles.length?null:()async{
                                   ActualPlaylist.index++;
                                   _carouselController.animateToPage(ActualPlaylist.index);
-                                  NowPlayingFile.listaBitow = await readBytes();
+                                  NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
                                   NowPlayingFile.isPlaying=true;
                                   _scrollController.jumpTo(_scrollController.position.minScrollExtent);
 
@@ -368,7 +294,7 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
 
   void onPhotoChanged(int indexOfPhoto, reason)async{
     ActualPlaylist.index=indexOfPhoto;
-    NowPlayingFile.listaBitow = await readBytes();
+    NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
     NowPlayingFile.isPlaying=true;
 
     setState(() {
