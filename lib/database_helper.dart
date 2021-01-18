@@ -10,7 +10,7 @@ class DatabaseHelper{
   static DatabaseHelper _databaseHelper;
   static Database _database;
 
-  String myTable = 'myTable';
+  String myTable = '';
   String colId = 'id';
   String colMusic = 'music';
   String colPhoto = 'photo';
@@ -26,15 +26,17 @@ class DatabaseHelper{
   }
 
   Future<Database> get database async{
-    if(_database==null){
+    //if(_database==null){
       _database = await initialiseDatabase();
-    }
+    //}
     return _database;
   }
 
-  Future<Database> initialiseDatabase() async{
+  Future<Database> initialiseDatabase([String name]) async{
+    if(name!=null)myTable=name;
+
     Directory directory = await getApplicationDocumentsDirectory();
-    String path = directory.path+'myDB.db';
+    String path = directory.path+'$myTable.db';
     var myDB = await openDatabase(path,version: 1,onCreate: createDB);
 
     return myDB;
@@ -42,13 +44,13 @@ class DatabaseHelper{
   }
 
   void createDB(Database db, int newVersion)async{
+
     await db.execute('CREATE TABLE $myTable($colId INTEGER PRIMARY KEY AUTOINCREMENT, $colMusic TEXT, $colPhoto TEXT)');
   }
 
   Future<List<Map<String, dynamic>>> getItemsMapList() async{
     Database db = await this.database;
     var result = await db.query(myTable);
-    print('hi'+result.length.toString());
     return result;
   }
   

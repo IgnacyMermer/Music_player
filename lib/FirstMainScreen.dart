@@ -8,6 +8,8 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:muzyka2/ActualPlaylist.dart';
+import 'package:muzyka2/NowPlayingFile.dart';
 import 'package:muzyka2/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -18,23 +20,13 @@ class FirstMainScreen extends StatefulWidget {
 }
 class _FirstMainScreenState extends State<FirstMainScreen> {
 
-  bool isPlaying=false;
-  DatabaseHelper databaseHelper = new DatabaseHelper();
+  DatabaseHelper databaseHelper=  new DatabaseHelper();
 
-  int index=0;
-  /*List<dynamic> listOfSongs=List();
-  List<dynamic> listOfImages = List();*/
-  List<MusicFile> listOfMusicFiles;
-
-  AudioPlayer player;
-  AudioCache cache;
-  Duration position = new Duration();
-  Duration musicLength = new Duration();
   File file;
   File image;
-  String _path = "", fileName="";
-  FileType _pickingType = FileType.audio;
-  Uint8List listaBitow;
+  String fileName="";
+  FileType pickingType = FileType.audio;
+
 
   CarouselController _carouselController = new CarouselController();
   ScrollController _scrollController = ScrollController();
@@ -43,28 +35,27 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
     return Container(
       width: 300,
       child: Slider.adaptive(
-        value: position.inSeconds.toDouble(),
-        max:musicLength.inSeconds.toDouble(),
+
+        value: NowPlayingFile.position.inSeconds.toDouble()<=NowPlayingFile.musicLength.inSeconds.toDouble()?NowPlayingFile.position.inSeconds.toDouble():
+        NowPlayingFile.musicLength.inSeconds.toDouble(),
+
+        max:NowPlayingFile.musicLength.inSeconds.toDouble(),
         activeColor: Colors.white,
         inactiveColor: Colors.grey[700],
+
         onChanged: (value){
           seekToSec(value.toInt());
       })
     );
   }
 
-  void _openFileExplorer(bool isImage, [int indexPom]) async {
+  void _openFileExplorer([int indexPom]) async {
     try {
-      _pickingType=isImage?FileType.image:FileType.audio;
-      file = await FilePicker.getFile(type: _pickingType);
+      pickingType=FileType.image;
+      file = await FilePicker.getFile(type: pickingType);
       setState(() {
         if(file!=null) {
-          if (isImage) {
-            addImageFile(File(file.path), indexPom);
-          }
-          else {
-            addMusicFile(File(file.path));
-          }
+          addImageFile(File(file.path), indexPom);
         }
       });
     } catch (e) {
@@ -74,257 +65,338 @@ class _FirstMainScreenState extends State<FirstMainScreen> {
 
   void seekToSec(int value){
     Duration newPosition = new Duration(seconds: value);
-    player.seek(newPosition);
+    NowPlayingFile.player.seek(newPosition);
+  }
+
+  Future<Uint8List> readBytes() async{
+    return await File(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music).readAsBytes();
   }
 
 
   @override
   void initState() {
     super.initState();
-    player=AudioPlayer();
-    cache=AudioCache(fixedPlayer: player);
-    player.durationHandler=(d){
+
+    if(NowPlayingFile.position==null)NowPlayingFile.position=new Duration();
+    if(NowPlayingFile.musicLength==null)NowPlayingFile.musicLength=new Duration();
+
+    if(NowPlayingFile.player==null)NowPlayingFile.player=AudioPlayer();
+    if(NowPlayingFile.cache==null)NowPlayingFile.cache=AudioCache(fixedPlayer: NowPlayingFile.player);
+
+
+    NowPlayingFile.player.durationHandler=(d){
+
       setState(() {
-        musicLength=d;
+        NowPlayingFile.musicLength=d;
       });
+
     };
 
-    player.positionHandler=(d){
-      setState(() {
-        position=d;
-      });
+    NowPlayingFile.player.positionHandler=(d)async{
+
+      if(d.inSeconds==NowPlayingFile.musicLength.inSeconds){
+
+        NowPlayingFile.player.pause();
+
+        if(ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length) {
+
+          ActualPlaylist.index++;
+          _carouselController.animateToPage(ActualPlaylist.index);
+          NowPlayingFile.listaBitow = await readBytes();
+          NowPlayingFile.isPlaying = true;
+          _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+
+          setState(() {
+            NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+          });
+        }
+
+        else{
+          setState(() {
+            NowPlayingFile.position=new Duration();
+            NowPlayingFile.isPlaying=false;
+          });
+        }
+
+      }
+
+      else {
+
+        setState(() {
+          NowPlayingFile.position = d;
+        });
+
+      }
     };
   }
-  Future<Uint8List> readBytes() async{
-    return await File(listOfMusicFiles[index].music).readAsBytes();
+
+  void goOut(){
+    NowPlayingFile.player.durationHandler=(d){
+      NowPlayingFile.musicLength=d;
+
+    };
+
+    NowPlayingFile.player.positionHandler=(d){
+      NowPlayingFile.position=d;
+    };
+
+    Navigator.of(context).pop();
   }
+
+  
+  @override
+  void dispose() {
+    super.dispose();
+    NowPlayingFile.player.durationHandler=(d){
+      NowPlayingFile.musicLength=d;
+
+    };
+
+    NowPlayingFile.player.positionHandler=(d){
+      NowPlayingFile.position=d;
+    };
+
+  }
+
   @override
   Widget build(BuildContext context) {
 
-    if(listOfMusicFiles==null){
-      listOfMusicFiles = List<MusicFile>();
+    if(ActualPlaylist.listOfMusicFiles==null){
+      ActualPlaylist.listOfMusicFiles = List<MusicFile>();
       updateList();
     }
-    List<String> tab = listOfMusicFiles.length>0?listOfMusicFiles[index].music.toString().split('/'):null;
+    List<String> tab = ActualPlaylist.listOfMusicFiles.length>0?ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music.toString().split('/'):null;
 
-    String nameOfSong = tab!=null?tab[tab.length-1]:'Choose a song';
+    NowPlayingFile.title = tab!=null?tab[tab.length-1]:'Choose a song';
 
-    nameOfSong= nameOfSong.replaceAll(".mp3", "");
+    NowPlayingFile.title= NowPlayingFile.title.replaceAll(".mp3", "");
+    if(_carouselController!=null&&ActualPlaylist.index!=null) {
+      _carouselController.jumpToPage(ActualPlaylist.index);
+    }
 
-    return Scaffold(
-      body: WillPopScope(
-        onWillPop: onBackPressed,
-        child: Container(
-          width: double.infinity,
-          color: Colors.grey[850],
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 24.0,horizontal: 12.0),
-            child: Container(
-              child: ListView(
-                children: [
-                  Text("Muzyka",
-                      style: TextStyle(fontSize: 38, fontWeight: FontWeight.bold, color: Colors.white)),
+    return Dismissible(
 
-                  RaisedButton(
-                    color: Colors.blueGrey[700],
-                    onPressed: () => _openFileExplorer(false),
-                    child:Row(
-                      children: [
-                        SizedBox(width: 15),
-                        Icon(Icons.music_note),
-                        Expanded(child: Text("Dodaj plik .mp3", textAlign: TextAlign.center)),
-                      ],
-                    )
-                  ),
+      key:const Key('key'),
+      onDismissed: (_) => goOut(),
+      direction: DismissDirection.down,
 
-                  SizedBox(height: 40),
 
-                  CarouselSlider.builder(
-                    carouselController: _carouselController,
-                    options: CarouselOptions(height: 250,enableInfiniteScroll: false,  onPageChanged: onPhotoChanged),
-                    itemCount: listOfMusicFiles.length,
-                    itemBuilder: (BuildContext context, int itemIndex) {
-                      return Container(
-                        child: listOfMusicFiles[itemIndex].photo!=null?Container(child:Image.file(File(listOfMusicFiles[itemIndex].photo))):RaisedButton(child:Text("Add image"),
-                        onPressed: (){
-                          _openFileExplorer(true, itemIndex);
-                        }),
-                      );
-                    }
-                  ),
+      child:Scaffold(
+        appBar: AppBar(
+          leading: IconButton(icon: Icon(Icons.keyboard_arrow_down),
+            splashRadius: 20,
+            splashColor: Colors.grey[900],
+            onPressed: (){
+              Navigator.of(context).pop();
+          }),
+          title: Text("Muzyka"),
+        ),
+        body: WillPopScope(
+          onWillPop: onBackPressed,
+          child: Container(
+            width: double.infinity,
+            color: Colors.grey[850],
 
-                  SizedBox(height: 40),
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24.0,horizontal: 12.0),
+              child: Container(
+                child: Column(
+                  children: [
 
-                  SingleChildScrollView(
-                    controller: _scrollController,
-                    scrollDirection: Axis.horizontal,
-                    child: Text(listOfMusicFiles.length>0?nameOfSong:"Wybierz piosenkę",
-                      style: TextStyle(color: Colors.white,fontSize: 32, fontWeight: FontWeight.w600),maxLines: 1,
+
+                    SizedBox(height: 40),
+
+                    CarouselSlider.builder(
+                      carouselController: _carouselController,
+                      options: CarouselOptions(height: 250,enableInfiniteScroll: false,  onPageChanged: onPhotoChanged),
+                      itemCount: ActualPlaylist.listOfMusicFiles.length,
+                      itemBuilder: (BuildContext context, int itemIndex) {
+                        return Container(
+                          child: ActualPlaylist.listOfMusicFiles[itemIndex].photo!=null?
+                          Container(child:Image.file(File(ActualPlaylist.listOfMusicFiles[itemIndex].photo))):
+                          RaisedButton(child:Text("Add image"),
+                          onPressed: (){
+                            _openFileExplorer(itemIndex);
+                          }),
+                        );
+                      }
                     ),
-                  ),
 
-                  SizedBox(height: 20),
+                    SizedBox(height: 40),
 
-                  Container(
-                    child: Column(
-                      children: [
+                    SingleChildScrollView(
+                      controller: _scrollController,
+                      scrollDirection: Axis.horizontal,
+                      child: Text(ActualPlaylist.listOfMusicFiles.length>0?NowPlayingFile.title:"Wybierz piosenkę",
+                        style: TextStyle(color: Colors.white,fontSize: 32, fontWeight: FontWeight.w600),maxLines: 1,
+                      ),
+                    ),
 
-                        Container(
-                          width: 500,
-                          child: Row(
-                            children: [
-                              Text('${position.inMinutes}:'+(position.inSeconds.remainder(60)<10?"0":"")+position.inSeconds.remainder(60).toString(),
-                                  style: TextStyle(color: Colors.white)),
+                    SizedBox(height: 20),
 
-                              slider(),
+                    Container(
+                      child: Column(
+                        children: [
 
-                              Text('${musicLength.inMinutes}:'+(musicLength.inSeconds.remainder(60)<10?"0":"")+musicLength.inSeconds.remainder(60).toString(),
-                                  style: TextStyle(color: Colors.white)),
-                            ],
+                          Container(
+                            width: 500,
+                            child: Row(
+                              children: [
+                                Text('${NowPlayingFile.position.inMinutes}:'+(NowPlayingFile.position.inSeconds.remainder(60)<10?"0":"")
+                                    +NowPlayingFile.position.inSeconds.remainder(60).toString(),
+                                    style: TextStyle(color: Colors.white)),
+
+                                slider(),
+
+                                Text('${NowPlayingFile.musicLength.inMinutes}:'+(NowPlayingFile.musicLength.inSeconds.remainder(60)<10?"0":"")
+                                    +NowPlayingFile.musicLength.inSeconds.remainder(60).toString(),
+                                    style: TextStyle(color: Colors.white)),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
 
-                            IconButton(
+                              IconButton(
 
-                              icon: Icon(Icons.skip_previous, size: 45,color: index-1<0?Colors.grey[800]:Colors.white),
+                                icon: Icon(Icons.skip_previous, size: 45,color: ActualPlaylist.index-1<0?Colors.grey[800]:Colors.white),
 
-                              onPressed: index-1<0?null:()async{
-                                index--;
-                                _carouselController.animateToPage(index);
-                                listaBitow = await readBytes();
-                                isPlaying=true;
-                                _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+                                onPressed: ActualPlaylist.index-1<0?null:()async{
+                                  ActualPlaylist.index--;
+                                  _carouselController.animateToPage(ActualPlaylist.index);
+                                  NowPlayingFile.listaBitow = await readBytes();
+                                  NowPlayingFile.isPlaying=true;
+                                  _scrollController.jumpTo(_scrollController.position.minScrollExtent);
 
-                                setState(() {
-                                  cache.playBytes(listaBitow);
-                                });
-                              },
-                            ),
-
-                            IconButton(
-
-                              icon: Icon(isPlaying?Icons.pause:Icons.play_arrow, size: 45,color: Colors.white),
-
-                              onPressed: () async{
-                                if(isPlaying){
-                                  player.pause();
                                   setState(() {
-                                    isPlaying=!isPlaying;
+                                    NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
                                   });
-                                }
+                                },
+                              ),
 
-                                else{
+                              IconButton(
 
-                                    if(position.inSeconds==0) {
-                                      listaBitow = await readBytes();
-                                      cache.playBytes(listaBitow);
-                                    }
+                                icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow, size: 45,color: Colors.white),
 
-                                    else{
-                                      cache.playBytes(listaBitow);
-                                      player.seek(position);
-                                    }
-
-                                    _scrollController.animateTo(
-                                      _scrollController.position.maxScrollExtent,
-                                      duration: Duration(milliseconds: nameOfSong.length*160),
-                                      curve: Curves.easeInOut
-                                    );
-
-                                    _scrollController.addListener(() {
-
-                                      if(_scrollController.offset==_scrollController.position.maxScrollExtent){
-                                        _scrollController.animateTo(_scrollController.position.minScrollExtent,
-                                            duration: Duration(milliseconds: nameOfSong.length*160),
-                                            curve: Curves.easeInOut);
-                                      }
-
-                                      else if(_scrollController.offset==_scrollController.position.minScrollExtent){
-                                        _scrollController.animateTo(
-                                            _scrollController.position.maxScrollExtent,
-                                            duration: Duration(milliseconds: nameOfSong.length*160),
-                                            curve: Curves.easeInOut
-                                        );
-
-                                      }
-                                    });
-
+                                onPressed: () async{
+                                  if(NowPlayingFile.isPlaying){
+                                    NowPlayingFile.player.pause();
                                     setState(() {
-                                      isPlaying=!isPlaying;
+                                      NowPlayingFile.isPlaying=!NowPlayingFile.isPlaying;
                                     });
-
                                   }
-                              },
-                            ),
 
-                            IconButton(
+                                  else{
 
-                              icon: Icon(Icons.skip_next, size: 45,color: index+1>=listOfMusicFiles.length?Colors.grey[800]:Colors.white),
+                                      if(NowPlayingFile.position.inSeconds==0) {
+                                        NowPlayingFile.listaBitow = await readBytes();
+                                        NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+                                      }
 
-                              onPressed: index+1>=listOfMusicFiles.length?null:()async{
-                                index++;
-                                _carouselController.animateToPage(index);
-                                listaBitow = await readBytes();
-                                isPlaying=true;
-                                _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+                                      else{
+                                        NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+                                        NowPlayingFile.player.seek(NowPlayingFile.position);
+                                      }
 
-                                setState(() {
-                                  cache.playBytes(listaBitow);
-                                });
-                              },
-                            ),
+                                      _scrollController.animateTo(
+                                        _scrollController.position.maxScrollExtent,
+                                        duration: Duration(milliseconds: NowPlayingFile.title.length*160),
+                                        curve: Curves.easeInOut
+                                      );
 
-                          ],
-                        )
-                      ],
+                                      _scrollController.addListener(() {
+
+                                        if(_scrollController.offset==_scrollController.position.maxScrollExtent){
+                                          _scrollController.animateTo(_scrollController.position.minScrollExtent,
+                                              duration: Duration(milliseconds: NowPlayingFile.title.length*160),
+                                              curve: Curves.easeInOut);
+                                        }
+
+                                        else if(_scrollController.offset==_scrollController.position.minScrollExtent){
+                                          _scrollController.animateTo(
+                                              _scrollController.position.maxScrollExtent,
+                                              duration: Duration(milliseconds: NowPlayingFile.title.length*160),
+                                              curve: Curves.easeInOut
+                                          );
+
+                                        }
+                                      });
+
+                                      setState(() {
+                                        NowPlayingFile.isPlaying=!NowPlayingFile.isPlaying;
+                                      });
+
+                                    }
+                                },
+                              ),
+
+                              IconButton(
+
+                                icon: Icon(Icons.skip_next, size: 45,color: ActualPlaylist.index+1>=
+                                    ActualPlaylist.listOfMusicFiles.length?Colors.grey[800]:Colors.white),
+
+                                onPressed: ActualPlaylist.index+1>=ActualPlaylist.listOfMusicFiles.length?null:()async{
+                                  ActualPlaylist.index++;
+                                  _carouselController.animateToPage(ActualPlaylist.index);
+                                  NowPlayingFile.listaBitow = await readBytes();
+                                  NowPlayingFile.isPlaying=true;
+                                  _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+
+                                  setState(() {
+                                    NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+                                  });
+                                },
+                              ),
+
+                            ],
+                          )
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
+      )
     );
   }
 
   void onPhotoChanged(int indexOfPhoto, reason)async{
-    index=indexOfPhoto;
-    listaBitow = await readBytes();
-    isPlaying=true;
+    ActualPlaylist.index=indexOfPhoto;
+    NowPlayingFile.listaBitow = await readBytes();
+    NowPlayingFile.isPlaying=true;
 
     setState(() {
-      cache.playBytes(listaBitow);
+      NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
     });
   }
 
   void updateList(){
 
-    final Future<Database> dbFuture = databaseHelper.initialiseDatabase();
-
+    final Future<Database> dbFuture = databaseHelper.initialiseDatabase(ActualPlaylist.name);
     dbFuture.then((database) {
       Future<List<MusicFile>> itemsListFuture = databaseHelper.getItemsList();
       itemsListFuture.then((itemList){
         setState(() {
-          this.listOfMusicFiles=itemList;
+          ActualPlaylist.listOfMusicFiles=itemList;
         });
       });
     });
   }
 
   void addMusicFile(File musicFile){
-    MusicFile musicFilePom = MusicFile(music: file.path, photo: null,/* isPlayingNow: false,*/ id: listOfMusicFiles.length);
-    listOfMusicFiles.add(musicFilePom);
+    MusicFile musicFilePom = MusicFile(music: file.path, photo: null, id: ActualPlaylist.listOfMusicFiles.length);
+    ActualPlaylist.listOfMusicFiles.add(musicFilePom);
     databaseHelper.insertItem(musicFilePom);
   }
 
   void addImageFile(File imageFile, int index){
-    MusicFile musicFilePom = listOfMusicFiles[index];
+    MusicFile musicFilePom = ActualPlaylist.listOfMusicFiles[index];
     musicFilePom.photo= imageFile.path;
     databaseHelper.updateItem(musicFilePom);
   }

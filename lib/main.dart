@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:muzyka2/FirstMainScreen.dart';
+import 'package:muzyka2/MainScreen.dart';
 void main() {
   runApp(MyApp());
 }
@@ -14,9 +15,9 @@ class MyApp extends StatelessWidget {
     ));
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'Odtwarzacz muzyczny',
       theme: ThemeData.dark(),
-      home: FirstMainScreen(),
+      home: MainScreen(),
     );
   }
 }
