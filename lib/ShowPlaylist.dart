@@ -21,6 +21,7 @@ class ShowPlaylist extends StatefulWidget {
 class _ShowPlaylistState extends State<ShowPlaylist> {
 
   DatabaseHelper databaseHelper=new DatabaseHelper();
+  List<String> listOfTitles=new List();
 
   @override
   void initState() {
@@ -30,12 +31,21 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
 
   @override
   Widget build(BuildContext context) {
+
     if(ActualPlaylist.listOfMusicFiles==null){
       ActualPlaylist.listOfMusicFiles=new List();
     }
-    /*else{
-      print("HI"+ActualPlaylist.listOfPlaylist.length.toString());
-    }*/
+
+    for(MusicFile musicFile in ActualPlaylist.listOfMusicFiles){
+      List<String> tab = musicFile.music.toString().split('/');
+
+      String temp = tab!=null?tab[tab.length-1]:'Wybierz piosenkę';
+
+      listOfTitles.add(temp.replaceAll(".mp3", ""));
+    }
+
+
+
     return WillPopScope(
       onWillPop: onBackPressed,
       child: Scaffold(
@@ -66,7 +76,7 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                 children: [
 
                   IconButton(
-                    icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow,color:Colors.black),
+                    icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow,color:Colors.white),
                     onPressed: (){
                       if(NowPlayingFile.player!=null){
                         if(NowPlayingFile.isPlaying){
@@ -85,21 +95,34 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                   ),
 
 
-                  Container(width: MediaQuery.of(context).size.width*3/4,child: Text(NowPlayingFile.title!=null?NowPlayingFile.title:"Dodaj piosenkę")),
+                  Container(width: MediaQuery.of(context).size.width*3/4,
+                      child: Text(NowPlayingFile.title!=null?NowPlayingFile.title:"Dodaj piosenkę")),
 
 
                   ActualPlaylist.index!=null&&ActualPlaylist.listOfMusicFiles!=null?
                   IconButton(
-                    icon: Icon(Icons.skip_next, color: ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length?Colors.white:Colors.grey[800]),
+                    icon: Icon(Icons.skip_next, color: ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length?
+                    Colors.white:Colors.grey[800]),
+
+                    onPressed: ActualPlaylist.index+1>=ActualPlaylist.listOfMusicFiles.length?null:()async{
+                      ActualPlaylist.index++;
+                      NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
+                      NowPlayingFile.isPlaying=true;
+
+                      setState(() {
+                        NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+                      });
+                    },
                   ):Container(),
                 ],
               ),
             )
         ),
         body: Container(
+            color: Colors.grey[850],
             child: Column(
               children: [
-                SizedBox(height: 20),
+                SizedBox(height: 40),
 
                 RaisedButton(
                     color: Colors.blueGrey[700],
@@ -107,16 +130,29 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
                     child:Row(
                       children: [
                         SizedBox(width: 15),
-                        Icon(Icons.music_note),
-                        Expanded(child: Text("Dodaj plik .mp3", textAlign: TextAlign.center)),
+                        Icon(Icons.music_note,color: Colors.white,size: 25,),
+                        Expanded(child: Text("Dodaj utwór", textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white,fontSize: 22))),
                       ],
                     )
                 ),
                 SizedBox(height: 40),
-                ActualPlaylist.listOfMusicFiles.length!=0?ListView(physics: NeverScrollableScrollPhysics(), shrinkWrap: true, scrollDirection: Axis.vertical,
-                    children: ActualPlaylist.listOfMusicFiles.map((item) => Container(color:Colors.grey,child:RaisedButton(
-                      child: Text(item.music,style: TextStyle(color:Colors.white)),onPressed: ()async{
+                ActualPlaylist.listOfMusicFiles.length!=0?
+                  ListView(physics: NeverScrollableScrollPhysics(), shrinkWrap: true, scrollDirection: Axis.vertical,
+                    children: ActualPlaylist.listOfMusicFiles.map((item) => Container(color:Colors.transparent,child:RaisedButton(
+                      color: Colors.blueGrey[700],
+                      child: Text(listOfTitles[item.id],
+                          style: TextStyle(color:Colors.white),textAlign: TextAlign.center),
+                      onPressed: ()async{
+
                         ActualPlaylist.index = item.id;
+
+                        List<String> tab = ActualPlaylist.listOfMusicFiles.length>0?ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music.toString().split('/'):null;
+
+                        NowPlayingFile.title = tab!=null?tab[tab.length-1]:'Wybierz piosenkę';
+
+                        NowPlayingFile.title= NowPlayingFile.title.replaceAll(".mp3", "");
+
                         NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
                         NowPlayingFile.position=new Duration();
                         NowPlayingFile.isPlaying=true;
@@ -150,9 +186,20 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
   }
 
   void addMusicFile(File musicFile){
-    MusicFile musicFilePom = MusicFile(music: file.path, photo: null, id: ActualPlaylist.listOfMusicFiles.length);
-    ActualPlaylist.listOfMusicFiles.add(musicFilePom);
-    databaseHelper.insertItem(musicFilePom);
+    bool isFound=false;
+    for(MusicFile musicFilePom in ActualPlaylist.listOfMusicFiles){
+      if(musicFilePom.music==file.path){
+        isFound=true;
+      }
+    }
+    if(!isFound) {
+      MusicFile musicFilePom = MusicFile(music: file.path,
+          photo: null,
+          id: ActualPlaylist.listOfMusicFiles.length);
+
+      ActualPlaylist.listOfMusicFiles.add(musicFilePom);
+      databaseHelper.insertItem(musicFilePom);
+    }
   }
 
   void updateList(){
@@ -167,14 +214,6 @@ class _ShowPlaylistState extends State<ShowPlaylist> {
       });
     });
   }
-
-  /*Future<Uint8List> readBytes() async{
-    print(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music);
-    if(File(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music)==null){
-      print("Something wrong");
-    }
-    return await File(ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music).readAsBytes();
-  }*/
 
   Future<bool> onBackPressed(){
     Navigator.pop(context);

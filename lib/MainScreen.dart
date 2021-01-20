@@ -24,7 +24,6 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     updateList();
 
-
     if(NowPlayingFile.position==null)NowPlayingFile.position=new Duration();
     if(NowPlayingFile.musicLength==null)NowPlayingFile.musicLength=new Duration();
 
@@ -36,10 +35,6 @@ class _MainScreenState extends State<MainScreen> {
 
     };
 
-    /*NowPlayingFile.player.positionHandler=(d){
-      NowPlayingFile.position=d;
-    };*/
-
     NowPlayingFile.player.positionHandler=(d)async{
 
       if(d.inSeconds==NowPlayingFile.musicLength.inSeconds){
@@ -49,6 +44,7 @@ class _MainScreenState extends State<MainScreen> {
         if(ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length) {
 
           ActualPlaylist.index++;
+
           NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
           NowPlayingFile.isPlaying = true;
 
@@ -71,12 +67,20 @@ class _MainScreenState extends State<MainScreen> {
     };
   }
 
+
   @override
   Widget build(BuildContext context) {
 
     if(ActualPlaylist.listOfPlaylist==null){
       ActualPlaylist.listOfPlaylist=new List();
     }
+
+
+    List<String> tab = ActualPlaylist.listOfMusicFiles!=null?ActualPlaylist.listOfMusicFiles[ActualPlaylist.index].music.toString().split('/'):null;
+
+    NowPlayingFile.title = tab!=null?tab[tab.length-1]:'Choose a song';
+
+    NowPlayingFile.title= NowPlayingFile.title.replaceAll(".mp3", "");
 
     return WillPopScope(
       onWillPop: onBackPressed,
@@ -102,42 +106,73 @@ class _MainScreenState extends State<MainScreen> {
                     child: child,
                   );
                 },
-              );
+              ).then((value) {refreshScreen();});
             },
             child: Row(
               children: [
 
                 IconButton(
-                  icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow,color:Colors.black),
+                  icon: Icon(NowPlayingFile.isPlaying?Icons.pause:Icons.play_arrow,color:Colors.white),
                   onPressed: (){
+                    if(NowPlayingFile.player!=null){
+                      if(NowPlayingFile.isPlaying){
+                        NowPlayingFile.player.pause();
+                      }
+                      else{
+                        NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+                        NowPlayingFile.player.seek(NowPlayingFile.position);
+                      }
 
+                      setState(() {
+                        NowPlayingFile.isPlaying=!NowPlayingFile.isPlaying;
+                      });
+                    }
                   },
                 ),
 
 
-                Container(width: MediaQuery.of(context).size.width*3/4,child: Text(NowPlayingFile.title!=null?NowPlayingFile.title:"Add song")),
+                Container(width: MediaQuery.of(context).size.width*3/4,child: Text(NowPlayingFile.title!=null?NowPlayingFile.title:"Dodaj piosenkę")),
 
 
                 ActualPlaylist.index!=null&&ActualPlaylist.listOfMusicFiles!=null?
                 IconButton(
-                  icon: Icon(Icons.skip_next, color: ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length?Colors.white:Colors.grey[800]),
+                  icon: Icon(Icons.skip_next,
+                      color: ActualPlaylist.index+1<ActualPlaylist.listOfMusicFiles.length?Colors.white:Colors.grey[800]),
+
+                  onPressed: ActualPlaylist.index+1>=ActualPlaylist.listOfMusicFiles.length?null:()async{
+                    ActualPlaylist.index++;
+                    NowPlayingFile.listaBitow = await NowPlayingFile.readBytes();
+                    NowPlayingFile.isPlaying=true;
+
+                    setState(() {
+                      NowPlayingFile.cache.playBytes(NowPlayingFile.listaBitow);
+                    });
+                  },
                 ):Container(),
               ],
             ),
           )
         ),
         body: Container(
+          color: Colors.grey[900],
           child: Column(
             children: [
-              ActualPlaylist.listOfPlaylist.length!=0?ListView(physics: NeverScrollableScrollPhysics(), shrinkWrap: true, scrollDirection: Axis.vertical,
-              children: ActualPlaylist.listOfPlaylist.map((item) => Container(color:Colors.grey,child:RaisedButton(
-                child: Text(item.music,style: TextStyle(color:Colors.white)),onPressed: (){
-                  ActualPlaylist.name=item.music.replaceAll(" ","");
-                  Navigator.push(context, PageRouteBuilder(
-                    pageBuilder: (_, __, ___) => ShowPlaylist(),
-                    transitionDuration: Duration(seconds: 0),
-                  ),);
-              },
+              ActualPlaylist.listOfPlaylist.length!=0?
+              ListView(physics: NeverScrollableScrollPhysics(), shrinkWrap: true, scrollDirection: Axis.vertical,
+              children: ActualPlaylist.listOfPlaylist.map((item) =>
+                Container(color:Colors.grey,child:
+                  RaisedButton(color: Colors.blueGrey[700],
+
+                    child: Text(item.music,style: TextStyle(color:Colors.white)),
+                    onPressed: (){
+
+                    ActualPlaylist.name=item.music.replaceAll(" ","");
+
+                    Navigator.push(context, PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => ShowPlaylist(),
+                      transitionDuration: Duration(seconds: 0),
+                    )).then((value) {refreshScreen();});
+                  },
               ))).toList()):Container(),
               RaisedButton(
                 child:Text("Dodaj playlistę"),
@@ -152,6 +187,10 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+
+  void refreshScreen(){
+    setState(() {});
   }
 
 
@@ -227,8 +266,6 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
-
-
 
   void updateList(){
     final Future<Database> dbFuture = databaseHelper.initialiseDatabase("myPlaylist");
